@@ -1,0 +1,136 @@
+---
+output:
+  word_document: default
+  html_document: default
+  pdf_document: default
+---
+
+
+Project: Detecting Heart Disease
+Goal: to determine Whether a person suffers from heart disease using KNN 
+Questions: 
+   #• How well can we predict whether a patient suffers from heart disease or not
+      #based on the predictor variables available to us?
+   #• What value of k provides us with the best predictive performance? 
+   #  (going to us knn)
+
+----------------------------------------------------------------
+ Load the data 
+----------------------------------------------------------------
+```{r}
+library(dplyr)
+library(stringr)
+library(readr)
+
+heart = "C:/Users/itzal/OneDrive/Desktop/UH LIFE/YEAR 4/ML R/ch 6/Student/Data/heart.csv"        
+heart_data <- 
+  read_csv(file=heart, col_types = "nffnnffnfnfnff")
+glimpse(heart_data) # tells you all the features 
+summary(heart_data) # tells you the summary of all numerical and categorical features 
+```
+
+----------------------------------------------------------------
+ Data Cleaning: 
+----------------------------------------------------------------
+ • Dealing with missing data: 
+    There's missing data for 10 of our 14 variables
+    We are going to which is to remove the records with missing data from the dataset
+```{r}
+heart_data <- heart_data %>%
+  filter(!is.na(restingBP) & !is.na(cholesterol) & !is.na(highBloodSugar) &
+           !is.na(restingECG) & !is.na(restingHR) & !is.na(exerciseAngina) & 
+           !is.na(STdepression) & !is.na(STslope) & !is.na(coloredVessels) & 
+           !is.na(defectType))
+ 
+# • Normalizing the Data using min-max normalization approach 
+normalize <- function(x) {
+   return((x - min(x)) / (max(x) - min(x))) 
+}
+#   normalization function to each of our numeric features to normalize their values 
+#   between the range of 0 to 1.
+
+heart_data <- heart_data %>%
+  mutate(age = normalize(age)) %>%
+  mutate(restingBP = normalize(restingBP)) %>%
+  mutate(cholesterol = normalize(cholesterol)) %>%
+  mutate(restingHR = normalize(restingHR)) %>%
+  mutate(STdepression = normalize(STdepression)) %>%
+  mutate(coloredVessels = normalize(coloredVessels))
+
+summary(heart_data) # now range of values for  numeric features are all now within 0 and 1
+
+# • Dealing with Categorical Features by creating dummy variables. 
+#   A new dummy variable representing each of the unique values of the original 
+#   categorical variable (ex sex variable --> sex_male, sex_female by using dummy variables )
+heart_data <- data.frame(heart_data)
+
+heart_labels <- heart_data %>% select(heartDisease)  #splitting of class labels from rest of the data as we do want to create a dummy variable for this  
+heart_data <- heart_data %>% select(-heartDisease)
+
+colnames(heart_data) # orignal features 
+
+library(dummies)
+heart_data <- dummy.data.frame(data=heart_data, sep="_")
+colnames(heart_data) # now we have 25 features with 19 being dummy variables 
+
+
+# • Splitting the Data: (75% train, 25% test)
+set.seed(41)
+sample_index <- sample(nrow(heart_data), round(nrow(heart_data)*.75), replace = FALSE)
+heart_train <- heart_data[sample_index, ]
+heart_test <- heart_data[-sample_index, ]
+
+#  same split for class labels 
+heart_train_labels <- as.factor(heart_labels[sample_index, ])
+heart_test_labels <- as.factor(heart_labels[-sample_index, ])
+
+# • Classifying Unlabeled Data 
+#   Now ready to label our unlabeled data using the k-nearest neighbors approach
+library(class)
+heart_pred1 <-
+  knn(
+    train = heart_train,
+    test = heart_test,
+    cl = heart_train_labels,
+    k = 15
+  )
+head(heart_pred1)
+```
+
+----------------------------------------------------------------
+ Evaluating the Model 
+----------------------------------------------------------------
+  • need to compare the predicted labels for our test data (heart_pred1) 
+   against the actual labels for our test data (heart_test_labels)
+```{r}
+heart_pred1_table <- table(heart_test_labels, heart_pred1)
+heart_pred1_table
+sum(diag(heart_pred1_table)) / nrow(heart_test)
+# 81.33% accuracy
+```
+----------------------------------------------------------------
+ Improving the Model by trying to modify the k value 
+----------------------------------------------------------------
+```{r}
+heart_pred2 <-
+  knn(
+    train = heart_train,
+    test = heart_test,
+    cl = heart_train_labels,
+    k = 1
+  )
+heart_pred2_table <- table(heart_test_labels, heart_pred2)
+heart_pred2_table
+sum(diag(heart_pred2_table)) / nrow(heart_test) #75% accuracy 
+
+heart_pred3 <-
+  knn(
+    train = heart_train,
+    test = heart_test,
+    cl = heart_train_labels,
+    k = 40
+  )
+heart_pred3_table <- table(heart_test_labels, heart_pred3)
+heart_pred3_table
+sum(diag(heart_pred3_table)) / nrow(heart_test) #84% accuracy 
+```
